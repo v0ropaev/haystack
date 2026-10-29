@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    ``ConditionalRouter`` with ``validate_output_type=True`` now validates ``Literal`` and fixed-length ``tuple``
+    output types. A route declared with ``output_type=Literal["rag", "web"]`` used to raise a ``ValueError`` for
+    every output, including ``"rag"``. ``tuple[int, str]`` checked every item against ``int``, so ``(1, "a")`` was
+    rejected while ``(1, 2)`` passed. Each tuple position is now checked against its own type, and the tuple
+    length must match the number of declared types.
+
+    This makes validation stricter for routes that use ``tuple[int]`` to mean "a tuple of ints". ``tuple[int]``
+    now accepts only one-element tuples, so a value like ``(1, 2, 3)`` raises a ``ValueError``. Use
+    ``tuple[int, ...]`` for tuples of any length, which keeps its previous behavior.

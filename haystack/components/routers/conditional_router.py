@@ -5,7 +5,7 @@
 import ast
 import contextlib
 from collections.abc import Callable, Mapping, Sequence
-from typing import Any, NotRequired, TypedDict, get_args, get_origin
+from typing import Any, Literal, NotRequired, TypedDict, get_args, get_origin
 
 from jinja2 import Environment, TemplateSyntaxError
 from jinja2.nativetypes import NativeEnvironment
@@ -587,12 +587,22 @@ class ConditionalRouter:
         if origin is None:
             return isinstance(value, expected_type)
 
+        # Handle Literal types. Comparing the type first keeps 1 from matching Literal[True]
+        # and avoids calling == on unrelated objects.
+        if origin is Literal:
+            return any(type(value) is type(arg) and value == arg for arg in args)
+
         # Handle Sequence types (List, Tuple, etc)
         if isinstance(origin, type) and issubclass(origin, Sequence):
             if isinstance(value, (str, bytes)):
                 return False
             if not isinstance(value, Sequence):
                 return False
+            # Fixed-length tuples like tuple[int, str] declare one type per position
+            if origin is tuple and not (len(args) == 2 and args[1] is Ellipsis):
+                return len(value) == len(args) and all(
+                    self._output_matches_type(item, arg) for item, arg in zip(value, args, strict=True)
+                )
             # Empty sequence is valid
             if not value:
                 return True

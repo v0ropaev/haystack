@@ -4,6 +4,7 @@
 
 import copy
 from collections.abc import Callable
+from typing import Literal
 from unittest import mock
 
 import pytest
@@ -560,6 +561,64 @@ class TestRouter:
 
         with pytest.raises(ValueError, match="Route 'result' type doesn't match expected type"):
             router.run(value=42)
+
+    def test_validate_output_type_with_literal(self):
+        routes: list[Route] = [
+            {
+                "condition": "{{True}}",
+                "output": "{{path}}",
+                # Like the PEP 604 union above, `Literal[...]` is not a `type`, but it is a valid output type.
+                "output_type": Literal["rag", "web"],  # type: ignore[typeddict-item]
+                "output_name": "path",
+            }
+        ]
+        router = ConditionalRouter(routes, validate_output_type=True)
+
+        assert router.run(path="rag") == {"path": "rag"}
+        assert router.run(path="web") == {"path": "web"}
+
+        with pytest.raises(ValueError, match="Route 'path' type doesn't match expected type"):
+            router.run(path="other")
+
+    def test_validate_output_type_with_literal_checks_value_type(self):
+        routes: list[Route] = [
+            {
+                "condition": "{{True}}",
+                "output": "{{value}}",
+                "output_type": Literal[1],  # type: ignore[typeddict-item]
+                "output_name": "result",
+            }
+        ]
+        router = ConditionalRouter(routes, validate_output_type=True)
+
+        assert router.run(value=1) == {"result": 1}
+
+        # True == 1, but True is not a valid value for Literal[1]
+        with pytest.raises(ValueError, match="Route 'result' type doesn't match expected type"):
+            router.run(value=True)
+
+    def test_validate_output_type_with_fixed_length_tuple(self):
+        routes: list[Route] = [
+            {"condition": "{{True}}", "output": "{{value}}", "output_type": tuple[int, str], "output_name": "result"}
+        ]
+        router = ConditionalRouter(routes, validate_output_type=True)
+
+        assert router.run(value=(1, "a")) == {"result": (1, "a")}
+
+        for value in [(1, 2), (1,), (1, "a", "b")]:
+            with pytest.raises(ValueError, match="Route 'result' type doesn't match expected type"):
+                router.run(value=value)
+
+    def test_validate_output_type_with_variadic_tuple(self):
+        routes: list[Route] = [
+            {"condition": "{{True}}", "output": "{{value}}", "output_type": tuple[int, ...], "output_name": "result"}
+        ]
+        router = ConditionalRouter(routes, validate_output_type=True)
+
+        assert router.run(value=(1, 2, 3)) == {"result": (1, 2, 3)}
+
+        with pytest.raises(ValueError, match="Route 'result' type doesn't match expected type"):
+            router.run(value=(1, "a"))
 
     def test_str_not_matching_list_str(self):
         """
