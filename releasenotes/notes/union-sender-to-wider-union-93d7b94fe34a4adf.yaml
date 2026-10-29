@@ -1,0 +1,16 @@
+---
+upgrade:
+  - |
+    Some Union outputs can now connect to more inputs than before. If you call ``Pipeline.connect`` with component
+    names only, such as ``pipeline.connect("producer", "consumer")``, a pair of components that had a single
+    matching socket pair may now have more than one and raise ``PipelineConnectError`` saying that more than one
+    connection is possible. Name the sockets, for example ``pipeline.connect("producer.value", "consumer.data")``.
+fixes:
+  - |
+    ``Pipeline.connect`` no longer rejects a connection whose sender type is a Union when every member of that Union
+    is accepted by the receiver. For example, an ``int | None`` output can now be connected to an
+    ``int | str | None`` input, and a ``str | int`` output to an ``int | str | float`` input.
+    Before, the members of the two Unions were compared by position, so these connections failed with
+    ``PipelineConnectError``. Because of the same positional check, an ``int | str`` output connected to a
+    ``str | int | list[str] | list[int]`` input was wrapped in a list, so the value ``3`` arrived as ``[3]``.
+    It now arrives unchanged.

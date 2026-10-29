@@ -650,14 +650,54 @@ def test_types_are_always_not_compatible_strict(sender_type, receiver_type):
 @pytest.mark.parametrize(
     "sender_type,receiver_type",
     [
-        pytest.param((Union[(int, bool)]), (Union[(int, str)]), id="partially-overlapping-unions-with-primitives"),
+        pytest.param((Union[(int, float)]), (Union[(int, str)]), id="partially-overlapping-unions-with-primitives"),
         pytest.param((Union[(int, Class1)]), (Union[(int, Class2)]), id="partially-overlapping-unions-with-classes"),
-        pytest.param((int | bool), (int | str), id="partially-overlapping-unions-with-primitives-pep604"),
+        pytest.param((int | float), (int | str), id="partially-overlapping-unions-with-primitives-pep604"),
         pytest.param((int | Class1), (int | Class2), id="partially-overlapping-unions-with-classes-pep604"),
     ],
 )
 def test_partially_overlapping_unions_are_not_compatible_strict(sender_type, receiver_type):
     assert not _types_are_compatible(sender_type, receiver_type)[0]
+
+
+@pytest.mark.parametrize(
+    "sender_type,receiver_type",
+    [
+        pytest.param(Optional[int], Optional[Union[int, str]], id="optional-to-wider-optional"),
+        pytest.param(int | None, int | str | None, id="optional-to-wider-optional-pep604"),
+        pytest.param(Union[str, int], Union[int, str, float], id="union-to-reordered-wider-union"),
+        pytest.param(str | int, int | str | float, id="union-to-reordered-wider-union-pep604"),
+        pytest.param(
+            Optional[List[Document]], Union[List[Document], str, None], id="optional-container-to-wider-optional"
+        ),
+        pytest.param(
+            list[Document] | None, list[Document] | str | None, id="optional-container-to-wider-optional-pep604"
+        ),
+        pytest.param(Optional[Class3], Union[Class1, int, None], id="optional-subclass-to-wider-optional-superclass"),
+        pytest.param(Class3 | None, Class1 | int | None, id="optional-subclass-to-wider-optional-superclass-pep604"),
+        # bool is a subclass of int, so every member of the sender is accepted by the receiver
+        pytest.param(Union[int, bool], Union[int, str], id="union-with-int-subclass-to-union-with-int"),
+        pytest.param(int | bool, int | str, id="union-with-int-subclass-to-union-with-int-pep604"),
+    ],
+)
+def test_union_to_wider_union_is_compatible_strict(sender_type, receiver_type):
+    assert _types_are_compatible(sender_type, receiver_type) == (True, None)
+    assert not _types_are_compatible(receiver_type, sender_type)[0]
+
+
+@pytest.mark.parametrize(
+    "sender_type,receiver_type",
+    [
+        pytest.param(Union[Class3, Class1], Class1, id="union-of-subclasses-to-superclass"),
+        pytest.param(Class3 | Class1, Class1, id="union-of-subclasses-to-superclass-pep604"),
+        pytest.param(Union[List[int], List[str]], List[Union[int, str]], id="union-of-lists-to-list-of-union"),
+        pytest.param(list[int] | list[str], list[int | str], id="union-of-lists-to-list-of-union-pep604"),
+        pytest.param(Optional[int], object, id="optional-to-object"),
+        pytest.param(int | None, object, id="optional-to-object-pep604"),
+    ],
+)
+def test_union_with_all_members_compatible_to_non_union_strict(sender_type, receiver_type):
+    assert _types_are_compatible(sender_type, receiver_type) == (True, None)
 
 
 @pytest.mark.parametrize(
@@ -1165,6 +1205,11 @@ class TestConversion:
             ConversionStrategy.WRAP,
         )
 
+    def test_union_sender_accepted_as_is_is_not_converted(self):
+        # The receiver accepts every sender member directly, so the value is passed unchanged whatever the member order
+        assert _types_are_compatible(sender=int | str, receiver=str | int | list[str] | list[int]) == (True, None)
+        assert _types_are_compatible(sender=str | int, receiver=str | int | list[str] | list[int]) == (True, None)
+
     def test_convert_value(self):
         with pytest.raises(ValueError, match="Cannot convert `ChatMessage` to `str` because it has no text. "):
             _convert_value(
@@ -1281,6 +1326,11 @@ class TestConversion:
         is_compatible, strategy = _types_are_compatible(sender=str | ChatMessage, receiver=str)
         assert not is_compatible
         assert strategy is None
+
+        # Case 2: both sides are unions and one sender member is only accepted through a conversion
+        assert _types_are_compatible(sender=str | None, receiver=ChatMessage | None) == (False, None)
+        assert _types_are_compatible(sender=ChatMessage | None, receiver=str | None) == (False, None)
+        assert _types_are_compatible(sender=str | ChatMessage, receiver=str | None) == (False, None)
 
 
 def unresolvable_annotation(document: "Unimportable") -> None: ...  # type: ignore[name-defined]  # noqa: F821

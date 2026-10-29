@@ -165,7 +165,11 @@ def _strict_types_are_compatible(sender: Any, receiver: Any) -> bool:  # noqa: P
     if (sender_origin is Union and not sender_args) or (receiver_origin is Union and not receiver_args):
         return False
 
-    if sender_origin is not Union and receiver_origin is Union:
+    # A sender Union is compatible only if the receiver accepts every one of its members
+    if sender_origin is Union:
+        return all(_strict_types_are_compatible(sender_arg, receiver) for sender_arg in sender_args)
+
+    if receiver_origin is Union:
         return any(_strict_types_are_compatible(sender, union_arg) for union_arg in receiver_args)
 
     # Special case to allow list[T] -> Iterable[T] and list[T] -> Iterable[Any]

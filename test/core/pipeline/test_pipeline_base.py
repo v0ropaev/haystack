@@ -2285,6 +2285,16 @@ class TestPipelineConnect:
         assert list(pipe.graph.edges) == [("producer", "consumer", "items/sources")]
         assert pipe.graph["producer"]["consumer"]["items/sources"]["conversion_strategy"] is None
 
+    def test_connect_optional_output_to_wider_optional_input(self):
+        producer = component_class("Producer", output_types={"value": int | None})()
+        consumer = component_class("Consumer", input_types={"value": int | str | None})()
+        pipe = PipelineBase()
+        pipe.add_component("producer", producer)
+        pipe.add_component("consumer", consumer)
+        pipe.connect("producer.value", "consumer.value")
+        assert list(pipe.graph.edges) == [("producer", "consumer", "value/value")]
+        assert pipe.graph["producer"]["consumer"]["value/value"]["conversion_strategy"] is None
+
     def test_connect_list_output_to_list_or_iterable_input_is_ambiguous(self):
         producer = component_class("Producer", output_types={"value": list[str]})()
         consumer = component_class("Consumer", input_types={"list_items": list[str], "iterable_items": Iterable[str]})()
