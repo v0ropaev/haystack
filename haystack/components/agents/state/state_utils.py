@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import inspect
-from typing import Any, TypeVar, Union, get_origin
+from typing import Any, Literal, TypeVar, Union, get_origin
 
 from haystack.utils.type_serialization import _is_union_type
 
@@ -18,6 +18,7 @@ def _is_valid_type(obj: Any) -> bool:
     - Normal classes (str, dict, CustomClass)
     - Generic types (list[str], dict[str, int])
     - Union types (Union[str, int], Optional[str], str | int, str | None)
+    - Literal types (Literal["a", "b"], Literal[1, 2])
 
     :param obj: The object to check
     :return: True if the object is a valid type annotation, False otherwise
@@ -31,11 +32,17 @@ def _is_valid_type(obj: Any) -> bool:
         # >> True
         # >> _is_valid_type(str | int)
         # >> True
+        # >> _is_valid_type(Literal["a", "b"])
+        # >> True
         # >> _is_valid_type(42)
         # >> False
     """
     # Handle Union types (including Optional)
     if (origin := get_origin(obj)) and _is_union_type(origin):
+        return True
+
+    # Literal aliases are neither classes nor plain generic aliases, so check them by origin
+    if origin is Literal:
         return True
 
     # Bare Union type (without parameters) is not a valid type annotation

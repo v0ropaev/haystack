@@ -6,7 +6,7 @@ import inspect
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, Generic, List, Optional, TypeVar, Union
+from typing import Dict, Generic, List, Literal, Optional, TypeVar, Union
 
 import pytest
 
@@ -165,6 +165,17 @@ class TestIsValidType:
         # Test PEP 604 Optional-like types (X | None syntax)
         assert _is_valid_type(list[int] | None) is True
         assert _is_valid_type(dict[str, list] | None) is True
+
+    def test_literal_types(self):
+        assert _is_valid_type(Literal["pending", "done"]) is True
+        assert _is_valid_type(Literal[1, 2]) is True
+
+        # Literal was already accepted inside a Union or a generic, so it should be accepted on its own too
+        assert _is_valid_type(Optional[Literal["pending", "done"]]) is True
+        assert _is_valid_type(list[Literal["pending", "done"]]) is True
+
+        # Bare Literal (without parameters) is not a valid type annotation
+        assert _is_valid_type(Literal) is False
 
     def test_nested_generic_types(self):
         assert _is_valid_type(list[list[dict[str, list[int]]]]) is True
@@ -373,6 +384,14 @@ class TestState:
         }
         result = _schema_from_dict(schema_dict)
         assert result == complex_schema
+
+    def test_state_with_literal_type_round_trip(self):
+        state = State({"status": {"type": Literal["pending", "done"]}}, {"status": "pending"})
+        state.set("status", "done")
+
+        restored = State.from_dict(state.to_dict())
+        assert restored.schema["status"]["type"] == Literal["pending", "done"]
+        assert restored.get("status") == "done"
 
     def test_state_mutability(self):
         state = State({"my_list": {"type": list}}, {"my_list": [1, 2]})

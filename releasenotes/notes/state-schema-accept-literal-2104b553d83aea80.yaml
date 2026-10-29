@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    ``State`` and ``Agent`` now accept ``Literal`` types in the state schema, for example
+    ``state_schema={"status": {"type": Literal["pending", "done"]}}``. Previously this raised
+    ``ValueError: StateSchema: 'type' for key 'status' must be a Python type``, even though the same type was
+    already accepted inside ``Optional[...]`` or ``list[...]``.
